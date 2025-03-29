@@ -4,21 +4,26 @@ from io import BytesIO
 
 st.set_page_config(page_title="Plant List Generator", layout="centered")
 st.title("🌱 Plant List Generator")
+
 st.markdown("""
-#### 👋 Welcome to Meishu Plant Breeding Tools!
+#### 👋 Welcome to Meishu Breeding Tools!
 
 This tool helps you quickly generate transplant plant lists for field layout planning.  
-Just upload your Excel file with the following two columns:
+Just upload your Excel file with the following three important columns:
 
-| field.nr       | transplant |
-|----------------|------------|
-| 25s.0001       | 10         |
-| 25s.0002       | 8          |
+| field.nr       | transplant | generation |
+|----------------|------------|------------|
+| 25s.0001       | 10         | F2         |
+| 25s.0002       | 8          | F3         |
 
 📌 **field.nr** can be named with any seasonal prefix like `25s.field.nr`, `25a.field.nr`, etc.  
 The app will automatically recognize any column name that **contains `field.nr`**.
 
 📌 **transplant** must contain the number of plants transplanted for each field number.  
+
+📌 **generation** will be automatically incremented (e.g., F2 → F3). If empty, it will be initialized as F1.  
+
+All other columns will be preserved and copied across all generated plant entries.
 
 Need help? Contact the Meishu team.
 """)
@@ -48,19 +53,31 @@ if uploaded_file:
 
             plant_ids = []
             transplant_counts = []
+            metadata = []
 
             for idx, row in df.iterrows():
                 base_id = row[field_col]
                 count = int(row[transplant_col])
+
+                row_data = row.to_dict()
+
+                # Handle generation increment
+                gen = str(row_data.get('generation', '')).strip().upper()
+                if gen.startswith('F') and gen[1:].isdigit():
+                    row_data['generation'] = f"F{int(gen[1:]) + 1}"
+                elif gen == '':
+                    row_data['generation'] = 'F1'
+
                 for i in range(1, count + 1):
                     plant_id = f"{base_id}-{str(i).zfill(3)}"
                     plant_ids.append(plant_id)
                     transplant_counts.append(count)
+                    metadata.append(row_data.copy())
 
-            output_df = pd.DataFrame({
-                'Plant ID': plant_ids,
-                'Transplant Count': transplant_counts
-            })
+            # Combine data
+            output_df = pd.DataFrame(metadata)
+            output_df.insert(0, 'Transplant Count', transplant_counts)
+            output_df.insert(0, 'Plant ID', plant_ids)
 
             st.write("### 🔍 Preview (first 10 rows):")
             st.dataframe(output_df.head(10))
@@ -81,4 +98,3 @@ if uploaded_file:
             )
     except Exception as e:
         st.error(f"❌ Error reading file: {e}")
-
