@@ -21,7 +21,8 @@ The app will automatically recognize any column name that **contains `field.nr`*
 
 📌 **transplant** must contain the number of plants transplanted for each field number.  
 
-📌 **generation** will be automatically incremented (e.g., F2 → F3). If empty, it will be initialized as F1.  
+📌 **generation** will be automatically incremented (e.g., F2 → F3). 
+➡️ For cross-pollination seeds, fill in **F0**, then it will advance to **F1** in the transplant list.              
 
 All other columns will be preserved and copied across all generated plant entries.
 
