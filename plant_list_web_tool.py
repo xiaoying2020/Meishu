@@ -7,13 +7,13 @@ st.set_page_config(page_title="Meishu Breeding Tools", layout="centered")
 # Sidebar navigation
 st.markdown("""
 <style>
-    .sidebar .sidebar-content {{
+    .sidebar .sidebar-content {
         font-size: 18px;
-    }}
+    }
 </style>
 """, unsafe_allow_html=True)
 
-tool = st.sidebar.radio("### 🧭 Select a tool:", ["🌱 Plant List Generator", "🧬 Marker Suggestion Plan"])
+tool = st.sidebar.radio("### 🧭 Select a tool:", ["🌱 Plant List Generator", "🧬 Marker Suggestion Plan", "🧪 Marker Sample Plan"])
 
 if tool == "🌱 Plant List Generator":
     st.title("🌱 Plant List Generator")
@@ -42,7 +42,6 @@ if tool == "🌱 Plant List Generator":
     Need help? Contact the Meishu team.
     """)
 
-    # File uploader
     uploaded_file = st.file_uploader("Upload Excel File", type=[".xlsx"])
 
     if uploaded_file:
@@ -51,7 +50,6 @@ if tool == "🌱 Plant List Generator":
             sheet_name = st.selectbox("Select a sheet:", xls.sheet_names)
             df = pd.read_excel(xls, sheet_name=sheet_name)
 
-            # Detect columns dynamically
             transplant_col = None
             field_col = None
 
@@ -76,7 +74,6 @@ if tool == "🌱 Plant List Generator":
 
                     row_data = row.to_dict()
 
-                    # Handle generation increment
                     gen = str(row_data.get('generation', '')).strip().upper()
                     if gen.startswith('F') and gen[1:].isdigit():
                         row_data['generation'] = f"F{int(gen[1:]) + 1}"
@@ -89,7 +86,6 @@ if tool == "🌱 Plant List Generator":
                         transplant_counts.append(count)
                         metadata.append(row_data.copy())
 
-                # Combine data
                 output_df = pd.DataFrame(metadata)
                 output_df.insert(0, 'Transplant Count', transplant_counts)
                 output_df.insert(0, 'Plant ID', plant_ids)
@@ -97,13 +93,11 @@ if tool == "🌱 Plant List Generator":
                 st.write("### 🔍 Preview (first 10 rows):")
                 st.dataframe(output_df.head(10))
 
-                # Download link
                 def to_excel(df):
                     output = BytesIO()
                     with pd.ExcelWriter(output, engine='openpyxl') as writer:
                         df.to_excel(writer, index=False, sheet_name='Plant List')
-                    processed_data = output.getvalue()
-                    return processed_data
+                    return output.getvalue()
 
                 st.download_button(
                     label="📥 Download Full Plant List as Excel",
@@ -133,7 +127,7 @@ elif tool == "🧬 Marker Suggestion Plan":
     |------------|-----|-----|-----|--------|
     | 25s.0171   | H   | H   | H   | S      |
     | 25s.0172   | H   | S   | H   | R      |
-    | 25s.0173   |     |     |     |        |
+    | 25s.0173   | H   | H   | H   | S      |
     | 25s.0174   | H   | H   | H   | S      |
 
     You can then manually input the number of plants per marker and proceed to generate your sample plan.
@@ -175,5 +169,60 @@ elif tool == "🧬 Marker Suggestion Plan":
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
+        except Exception as e:
+            st.error(f"❌ Error reading file: {e}")
+
+elif tool == "🧪 Marker Sample Plan":
+    st.title("🧪 Marker Sample Plan Generator")
+
+    st.markdown("""
+    ### 🧬 Marker Sample Plan
+    Upload your **marker plan Excel file** with sow.nr and the number of plants to test for each marker. This tool will expand the plan into a plant-by-marker testing sheet.
+
+    📌 Example input format:
+
+    | sow.nr     | Ty1 | Ty2 | Ty3 | Tm-2a |
+    |------------|-----|-----|-----|--------|
+    | 25s.0171   | 3   | 3   | 3   | 0      |
+    | 25s.0172   | 3   | 0   | 3   | 3      |
+    """)
+
+    uploaded_file = st.file_uploader("Upload Excel file", type=[".xlsx"])
+
+    if uploaded_file:
+        try:
+            xls = pd.ExcelFile(uploaded_file)
+            sheet_name = st.selectbox("Select a sheet:", xls.sheet_names)
+            df = pd.read_excel(xls, sheet_name=sheet_name)
+            marker_cols = [col for col in df.columns if col.lower() not in ['sow.nr']]
+
+            expanded_rows = []
+            for _, row in df.iterrows():
+                base_id = row['sow.nr']
+                max_plants = max([int(row[col]) if pd.notna(row[col]) else 0 for col in marker_cols])
+                for i in range(1, max_plants + 1):
+                    plant_row = {'sow.nr': base_id, 'sample.nr': f"{base_id}-{str(i).zfill(3)}"}
+                    for marker in marker_cols:
+                        marker_count = int(row[marker]) if pd.notna(row[marker]) else 0
+                        plant_row[marker] = 'yes' if i <= marker_count else 'no'
+                    expanded_rows.append(plant_row)
+
+            output_df = pd.DataFrame(expanded_rows)
+
+            st.write("### 📋 Marker Sample Plan Preview:")
+            st.dataframe(output_df.head(10))
+
+            def to_excel(df):
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df.to_excel(writer, index=False, sheet_name='Marker Sample Plan')
+                return output.getvalue()
+
+            st.download_button(
+                label="📥 Download Marker Sample Plan",
+                data=to_excel(output_df),
+                file_name="marker_sample_plan.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
         except Exception as e:
             st.error(f"❌ Error reading file: {e}")
