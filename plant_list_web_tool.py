@@ -5,7 +5,15 @@ from io import BytesIO
 st.set_page_config(page_title="Meishu Breeding Tools", layout="centered")
 
 # Sidebar navigation
-tool = st.sidebar.radio("Select a tool:", ["🌱 Plant List Generator", "🧬 Marker Suggestion Plan"])
+st.markdown("""
+<style>
+    .sidebar .sidebar-content {{
+        font-size: 18px;
+    }}
+</style>
+""", unsafe_allow_html=True)
+
+tool = st.sidebar.radio("### 🧭 Select a tool:", ["🌱 Plant List Generator", "🧬 Marker Suggestion Plan"])
 
 if tool == "🌱 Plant List Generator":
     st.title("🌱 Plant List Generator")
@@ -36,11 +44,12 @@ if tool == "🌱 Plant List Generator":
 
     # File uploader
     uploaded_file = st.file_uploader("Upload Excel File", type=[".xlsx"])
-    sheet_name = st.text_input("Enter sheet name (e.g., Sheet1)", value="Sheet1")
 
     if uploaded_file:
         try:
-            df = pd.read_excel(uploaded_file, sheet_name=sheet_name)
+            xls = pd.ExcelFile(uploaded_file)
+            sheet_name = st.selectbox("Select a sheet:", xls.sheet_names)
+            df = pd.read_excel(xls, sheet_name=sheet_name)
 
             # Detect columns dynamically
             transplant_col = None
@@ -122,43 +131,33 @@ elif tool == "🧬 Marker Suggestion Plan":
 
     | sow.nr     | Ty1 | Ty2 | Ty3 | Tm-2a |
     |------------|-----|-----|-----|--------|
-    | 25s.0178   | H   | S   | H   | R      |
-    | 25s.0179   | R   | S   | R   | R      |
-    | 25s.0180   |     |     |     |        |
-    | 25s.0181   | H   | S   | H   | S      |
-    | 25s.0182   | R   | S   | R   | R      |
+    | 25s.0171   | H   | H   | H   | S      |
+    | 25s.0172   | H   | S   | H   | R      |
+    | 25s.0173   |     |     |     |        |
+    | 25s.0174   | H   | H   | H   | S      |
 
     You can then manually input the number of plants per marker and proceed to generate your sample plan.
     """)
 
     uploaded_file = st.file_uploader("Upload Excel file", type=[".xlsx"])
-    sheet_name = st.text_input("Enter sheet name", value="P1")
 
     if uploaded_file:
         try:
-            df = pd.read_excel(uploaded_file, sheet_name=sheet_name)
-
-            # Make a copy for suggestion output
-            suggestion_df = df.copy()
-
+            xls = pd.ExcelFile(uploaded_file)
+            sheet_name = st.selectbox("Select a sheet:", xls.sheet_names)
+            df = pd.read_excel(xls, sheet_name=sheet_name)
             marker_cols = ['Ty1', 'Ty2', 'Ty3', 'Tm-2a']
 
+            suggestion_df = df.copy()
             for marker in marker_cols:
                 if marker not in suggestion_df.columns:
                     suggestion_df[marker] = ''
 
-            def suggest_marker(val):
-                val = str(val).strip().upper()
-                return 'yes' if val in ['R', 'H'] else 'no'
-
-            for idx, row in suggestion_df.iterrows():
-                for marker in marker_cols:
-                    value = str(row.get(marker, '')).strip().upper()
-                    # If no marker info at all, suggest all
-                    if value == '' or pd.isna(value):
-                        suggestion_df.at[idx, marker] = 'yes'
-                    else:
-                        suggestion_df.at[idx, marker] = suggest_marker(value)
+            for marker in marker_cols:
+                plan_col = f"plan.{marker}"
+                suggestion_df[plan_col] = suggestion_df[marker].apply(
+                    lambda x: 'yes' if pd.isna(x) or str(x).strip().upper() in ['R', 'H', ''] else 'no'
+                )
 
             st.write("### 📋 Suggested Marker Plan (Preview):")
             st.dataframe(suggestion_df.head(10))
